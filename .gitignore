@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+artifacts/
+logs/
+.last_experiment.json
+.complex_best_state.json
+.complex_deck_stage
+best_config.json
+complex_best_config.json
+results.tsv
+complex_results.tsv
+reports/intent_research_deck.md
+reports/complex_intent_research_deck.md

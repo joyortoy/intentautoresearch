@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RUNNER="${ROOT_DIR}/run_intent_autoresearch.sh"
+DATA_FILE="${ROOT_DIR}/data/complex_intent_deck.jsonl"
+RESULTS_TSV="${ROOT_DIR}/complex_results.tsv"
+BEST_CONFIG_JSON="${ROOT_DIR}/complex_best_config.json"
+DECK_MD="${ROOT_DIR}/reports/complex_intent_research_deck.md"
+DEVICE="${INTENT_AUTORESEARCH_DEVICE:-cpu}"
+
+if [[ ! -f "${DATA_FILE}" ]]; then
+  echo "Missing complex deck: ${DATA_FILE}" >&2
+  exit 1
+fi
+
+run_case() {
+  local description="$1"
+  shift
+  echo "=== ${description} ==="
+  env \
+    INTENT_AUTORESEARCH_DATA_FILES="${DATA_FILE}" \
+    INTENT_AUTORESEARCH_RESULTS_TSV="${RESULTS_TSV}" \
+    INTENT_AUTORESEARCH_BEST_CONFIG_JSON="${BEST_CONFIG_JSON}" \
+    INTENT_AUTORESEARCH_DECK_MD="${DECK_MD}" \
+    INTENT_AUTORESEARCH_DEVICE="${DEVICE}" \
+    INTENT_AUTORESEARCH_SELECTION_MODE="macro_f1" \
+    INTENT_AUTORESEARCH_MANUAL_DESCRIPTION="${description}" \
+    "$@" \
+    "${RUNNER}"
+}
+
+if [[ "${INTENT_AUTORESEARCH_USE_LLM_PLANNER:-${INTENT_AUTORESEARCH_USE_CODEX_PLANNER:-1}}" == "1" ]]; then
+  echo "=== prometheus-planner ==="
+  env \
+    INTENT_AUTORESEARCH_DATA_FILES="${DATA_FILE}" \
+    INTENT_AUTORESEARCH_RESULTS_TSV="${RESULTS_TSV}" \
+    INTENT_AUTORESEARCH_BEST_CONFIG_JSON="${BEST_CONFIG_JSON}" \
+    INTENT_AUTORESEARCH_DECK_MD="${DECK_MD}" \
+    INTENT_AUTORESEARCH_DEVICE="${DEVICE}" \
+    INTENT_AUTORESEARCH_SELECTION_MODE="macro_f1" \
+    "${RUNNER}"
+  echo "Complex results: ${RESULTS_TSV}"
+  echo "Complex deck: ${DECK_MD}"
+  exit 0
+fi
+
+run_case "complex-baseline-winner" \
+  INTENT_AUTORESEARCH_LR=0.0003 \
+  INTENT_AUTORESEARCH_WEIGHT_DECAY=0.05 \
+  INTENT_AUTORESEARCH_DROPOUT=0.10 \
+  INTENT_AUTORESEARCH_TIME_BUDGET=20
+
+run_case "complex-neighbor-lr-0.0002-wd-0.05-drop-0.10" \
+  INTENT_AUTORESEARCH_LR=0.0002 \
+  INTENT_AUTORESEARCH_WEIGHT_DECAY=0.05 \
+  INTENT_AUTORESEARCH_DROPOUT=0.10 \
+  INTENT_AUTORESEARCH_TIME_BUDGET=20
+
+run_case "complex-neighbor-lr-0.0004-wd-0.05-drop-0.10" \
+  INTENT_AUTORESEARCH_LR=0.0004 \
+  INTENT_AUTORESEARCH_WEIGHT_DECAY=0.05 \
+  INTENT_AUTORESEARCH_DROPOUT=0.10 \
+  INTENT_AUTORESEARCH_TIME_BUDGET=20
+
+run_case "complex-neighbor-lr-0.0003-wd-0.06-drop-0.10" \
+  INTENT_AUTORESEARCH_LR=0.0003 \
+  INTENT_AUTORESEARCH_WEIGHT_DECAY=0.06 \
+  INTENT_AUTORESEARCH_DROPOUT=0.10 \
+  INTENT_AUTORESEARCH_TIME_BUDGET=20
+
+run_case "complex-neighbor-lr-0.0003-wd-0.04-drop-0.10" \
+  INTENT_AUTORESEARCH_LR=0.0003 \
+  INTENT_AUTORESEARCH_WEIGHT_DECAY=0.04 \
+  INTENT_AUTORESEARCH_DROPOUT=0.10 \
+  INTENT_AUTORESEARCH_TIME_BUDGET=20
+
+run_case "complex-neighbor-lr-0.0003-wd-0.05-drop-0.15" \
+  INTENT_AUTORESEARCH_LR=0.0003 \
+  INTENT_AUTORESEARCH_WEIGHT_DECAY=0.05 \
+  INTENT_AUTORESEARCH_DROPOUT=0.15 \
+  INTENT_AUTORESEARCH_TIME_BUDGET=20
+
+run_case "complex-neighbor-lr-0.0003-wd-0.05-drop-0.05" \
+  INTENT_AUTORESEARCH_LR=0.0003 \
+  INTENT_AUTORESEARCH_WEIGHT_DECAY=0.05 \
+  INTENT_AUTORESEARCH_DROPOUT=0.05 \
+  INTENT_AUTORESEARCH_TIME_BUDGET=20
+
+echo "Complex results: ${RESULTS_TSV}"
+echo "Complex deck: ${DECK_MD}"

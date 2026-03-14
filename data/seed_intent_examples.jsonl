@@ -1,0 +1,29 @@
+{"prompt":"hello","expected_intent":"general_chat","note":"basic greeting"}
+{"prompt":"hi there","expected_intent":"general_chat","note":"basic greeting"}
+{"prompt":"Please help me with docker setup","expected_intent":"tech_support","note":"technical assistance"}
+{"prompt":"My Docker container exits immediately after startup","expected_intent":"tech_support","note":"troubleshooting"}
+{"prompt":"Write a Python script that summarizes the request logs","expected_intent":"task_request","note":"direct build task"}
+{"prompt":"Generate a SQL query to count failed requests by day","expected_intent":"task_request","note":"generate artifact"}
+{"prompt":"Plan a migration from sqlite to postgres for this service","expected_intent":"plan_project","note":"project planning"}
+{"prompt":"Let's map a 2-week plan to migrate request logs into Postgres","expected_intent":"plan_project","note":"planning ambiguity"}
+{"prompt":"remember","expected_intent":"log_memory","note":"exact memory trigger"}
+{"prompt":"remember: always summarize failures before proposing fixes","expected_intent":"log_memory","note":"memory trigger with instruction"}
+{"prompt":"What do you remember about this conversation?","expected_intent":"retrieve_memory","note":"memory read"}
+{"prompt":"What preferences have I asked you to remember?","expected_intent":"retrieve_memory","note":"memory recall"}
+{"prompt":"Train the intent router using these corrected examples","expected_intent":"train_intent","note":"intent training request"}
+{"prompt":"Retrain the intent classifier with these false positives","expected_intent":"train_intent","note":"router training"}
+{"prompt":"Can you write a tiny bash script to tail the last 50 app logs?","expected_intent":"task_request","note":"code generation vs chat"}
+{"prompt":"Why is uvicorn failing to import my module?","expected_intent":"tech_support","note":"debugging help"}
+{"prompt":"Help me decide whether to split this service into two workers next sprint","expected_intent":"plan_project","note":"planning ambiguity"}
+{"prompt":"save this: default to pytest -q for quick checks","expected_intent":"log_memory","note":"memory trigger with command preference"}
+{"prompt":"What do you know about my default test command?","expected_intent":"retrieve_memory","note":"memory read phrased indirectly"}
+{"prompt":"Tune the intent router so coding asks stop landing in general chat","expected_intent":"train_intent","note":"router tuning"}
+{"prompt":"build a small endpoint that returns health status","expected_intent":"task_request","note":"build request"}
+{"prompt":"I keep getting connection refused on localhost:8090","expected_intent":"tech_support","note":"runtime failure"}
+{"prompt":"from now on use concise bullet updates","expected_intent":"log_memory","note":"persistent instruction"}
+{"prompt":"Can you help me plan the script I need to write?","expected_intent":"plan_project","note":"plan vs build ambiguity"}
+{"prompt":"Correct the intent router using these mislabeled examples","expected_intent":"train_intent","note":"training with correction wording"}
+{"prompt":"good morning","expected_intent":"general_chat","note":"simple greeting"}
+{"prompt":"help me debug my failing service","expected_intent":"tech_support","note":"support request"}
+{"prompt":"make a tiny endpoint for health","expected_intent":"task_request","note":"build request"}
+
