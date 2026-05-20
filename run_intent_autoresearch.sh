@@ -13,6 +13,7 @@ DECK_MD="${INTENT_AUTORESEARCH_DECK_MD:-${ROOT_DIR}/reports/intent_research_deck
 SELECTION_MODE="${INTENT_AUTORESEARCH_SELECTION_MODE:-loss}"
 PLANNER_SCRIPT="${ROOT_DIR}/suggest_experiment.py"
 DISCORD_NOTIFY_SCRIPT="${ROOT_DIR}/discord_notify.py"
+RECOVERY_FLAG_FILE="${INTENT_AUTORESEARCH_RECOVERY_FLAG_FILE:-${ROOT_DIR}/.best_only_recovery.json}"
 
 mkdir -p "${LOG_DIR}"
 
@@ -44,7 +45,10 @@ current = {}
 if path.exists():
     current = json.loads(path.read_text())
 merged = dict(defaults)
-merged.update(current)
+for key, value in current.items():
+    text = str(value).strip()
+    if text:
+        merged[key] = text
 path.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
 PY
 }
@@ -59,13 +63,34 @@ from pathlib import Path
 cfg = json.loads(Path(sys.argv[1]).read_text())
 cfg["description"] = sys.argv[2]
 print(json.dumps(cfg, indent=2))
+    PY
+    return
+  fi
+  if [[ -f "${RECOVERY_FLAG_FILE}" ]]; then
+    python3 - "${BEST_CONFIG_JSON}" "${RECOVERY_FLAG_FILE}" <<'PY' > "${EXPERIMENT_JSON}"
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+cfg = json.loads(Path(sys.argv[1]).read_text())
+reason_payload = {}
+try:
+    reason_payload = json.loads(Path(sys.argv[2]).read_text())
+except Exception:
+    reason_payload = {}
+cfg["_planner_source"] = "recovery"
+reason = str(reason_payload.get("reason", "restart-from-best")).strip() or "restart-from-best"
+cfg["_planner_note"] = reason
+base_desc = str(cfg.get("description", "best-model")).strip() or "best-model"
+stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+cfg["description"] = f"restart-best-{base_desc}-{stamp}"
+print(json.dumps(cfg, indent=2))
 PY
     return
   fi
-  if [[ "${INTENT_AUTORESEARCH_USE_LLM_PLANNER:-${INTENT_AUTORESEARCH_USE_CODEX_PLANNER:-1}}" != "0" ]]; then
-    if python3 "${PLANNER_SCRIPT}" "${BEST_CONFIG_JSON}" "${RESULTS_TSV}" > "${EXPERIMENT_JSON}"; then
-      return
-    fi
+  if python3 "${PLANNER_SCRIPT}" "${BEST_CONFIG_JSON}" "${RESULTS_TSV}" > "${EXPERIMENT_JSON}"; then
+    return
   fi
   python3 - "${BEST_CONFIG_JSON}" "${RESULTS_TSV}" <<'PY' > "${EXPERIMENT_JSON}"
 import csv
@@ -87,23 +112,32 @@ def clone(desc, **updates):
     cfg["description"] = desc
     return cfg
 
+lr = float(best.get("INTENT_AUTORESEARCH_LR", "0.002"))
+dropout = float(best.get("INTENT_AUTORESEARCH_DROPOUT", "0.1"))
+weight_decay = float(best.get("INTENT_AUTORESEARCH_WEIGHT_DECAY", "0.01"))
+batch = int(float(best.get("INTENT_AUTORESEARCH_BATCH_SIZE", "16")))
+embed = int(float(best.get("INTENT_AUTORESEARCH_EMBED_DIM", "128")))
+hidden = int(float(best.get("INTENT_AUTORESEARCH_HIDDEN_DIM", "192")))
+max_len = int(float(best.get("INTENT_AUTORESEARCH_MAX_LEN", "48")))
+time_budget = int(float(best.get("INTENT_AUTORESEARCH_TIME_BUDGET", "30")))
+
 candidates = [
-    clone("baseline-repeat"),
-    clone("lower-lr", INTENT_AUTORESEARCH_LR="0.001"),
-    clone("higher-lr", INTENT_AUTORESEARCH_LR="0.004"),
-    clone("smaller-batch", INTENT_AUTORESEARCH_BATCH_SIZE="8"),
-    clone("larger-batch", INTENT_AUTORESEARCH_BATCH_SIZE="24"),
-    clone("wider-hidden", INTENT_AUTORESEARCH_HIDDEN_DIM="256"),
-    clone("smaller-hidden", INTENT_AUTORESEARCH_HIDDEN_DIM="128"),
-    clone("larger-embed", INTENT_AUTORESEARCH_EMBED_DIM="192"),
-    clone("lower-dropout", INTENT_AUTORESEARCH_DROPOUT="0.05"),
-    clone("higher-dropout", INTENT_AUTORESEARCH_DROPOUT="0.2"),
-    clone("stronger-weight-decay", INTENT_AUTORESEARCH_WEIGHT_DECAY="0.03"),
-    clone("low-lr-strong-reg", INTENT_AUTORESEARCH_LR="0.0005", INTENT_AUTORESEARCH_DROPOUT="0.2", INTENT_AUTORESEARCH_WEIGHT_DECAY="0.03"),
-    clone("shorter-context", INTENT_AUTORESEARCH_MAX_LEN="32"),
-    clone("longer-context", INTENT_AUTORESEARCH_MAX_LEN="64"),
+    clone("best-lr-down", INTENT_AUTORESEARCH_LR=f"{max(0.0001, lr * 0.85):.6f}".rstrip("0").rstrip(".")),
+    clone("best-lr-up", INTENT_AUTORESEARCH_LR=f"{min(0.004, lr * 1.15):.6f}".rstrip("0").rstrip(".")),
+    clone("best-dropout-down", INTENT_AUTORESEARCH_DROPOUT=f"{max(0.05, dropout - 0.03):.2f}"),
+    clone("best-dropout-up", INTENT_AUTORESEARCH_DROPOUT=f"{min(0.25, dropout + 0.03):.2f}"),
+    clone("best-weight-decay-down", INTENT_AUTORESEARCH_WEIGHT_DECAY=f"{max(0.0, weight_decay - 0.005):.3f}".rstrip("0").rstrip(".")),
+    clone("best-weight-decay-up", INTENT_AUTORESEARCH_WEIGHT_DECAY=f"{min(0.08, weight_decay + 0.005):.3f}".rstrip("0").rstrip(".")),
+    clone("best-batch-down", INTENT_AUTORESEARCH_BATCH_SIZE=str(max(8, batch - 8))),
+    clone("best-batch-up", INTENT_AUTORESEARCH_BATCH_SIZE=str(min(32, batch + 8))),
+    clone("best-embed-up", INTENT_AUTORESEARCH_EMBED_DIM=str(embed + 32)),
+    clone("best-hidden-up", INTENT_AUTORESEARCH_HIDDEN_DIM=str(hidden + 32)),
+    clone("best-context-up", INTENT_AUTORESEARCH_MAX_LEN=str(max_len + 16), INTENT_AUTORESEARCH_TIME_BUDGET=str(time_budget + 5)),
 ]
-print(json.dumps(candidates[run_idx % len(candidates)], indent=2))
+proposal = candidates[run_idx % len(candidates)]
+proposal["_planner_source"] = "fallback"
+proposal["_planner_note"] = "final-local-best-fallback"
+print(json.dumps(proposal, indent=2))
 PY
 }
 
@@ -158,7 +192,7 @@ note = f" | note={planner_note}" if planner_note else ""
 message = (
     f"[intentautoresearch] status={status} | exp={description} | planner={planner}"
     f" | loss={float(val_loss):.6f} | acc={float(val_acc):.4f} | f1={float(val_f1):.4f}"
-    f" | vram_gb={float(memory_gb):.1f}{note}"
+    f" | vram_gb={float(memory_gb):.3f}{note}"
     f" | deck={Path(deck_md).name} | log={Path(train_log).name}"
 )
 print(message[:1900])
@@ -296,7 +330,23 @@ payload = {
     "INTENT_AUTORESEARCH_MAX_LEN": sys.argv[9],
     "INTENT_AUTORESEARCH_TIME_BUDGET": sys.argv[10],
 }
-Path(sys.argv[1]).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+defaults = {
+    "description": "baseline",
+    "INTENT_AUTORESEARCH_LR": "0.002",
+    "INTENT_AUTORESEARCH_BATCH_SIZE": "16",
+    "INTENT_AUTORESEARCH_EMBED_DIM": "128",
+    "INTENT_AUTORESEARCH_HIDDEN_DIM": "192",
+    "INTENT_AUTORESEARCH_DROPOUT": "0.1",
+    "INTENT_AUTORESEARCH_WEIGHT_DECAY": "0.01",
+    "INTENT_AUTORESEARCH_MAX_LEN": "48",
+    "INTENT_AUTORESEARCH_TIME_BUDGET": "30",
+}
+normalized = dict(defaults)
+for key, value in payload.items():
+    text = str(value).strip()
+    if text:
+        normalized[key] = text
+Path(sys.argv[1]).write_text(json.dumps(normalized, indent=2) + "\n", encoding="utf-8")
 PY
 }
 
@@ -321,9 +371,10 @@ log_result() {
     echo "Experiment status: crash"
     return 1
   fi
+  rm -f "${RECOVERY_FLAG_FILE}"
   memory_gb="$(python3 - "${peak_vram_mb:-0}" <<'PY'
 import sys
-print(f"{float(sys.argv[1]) / 1024.0:.1f}")
+print(f"{float(sys.argv[1]) / 1024.0:.3f}")
 PY
 )"
   best_so_far="$(best_score)"

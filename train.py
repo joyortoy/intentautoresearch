@@ -18,7 +18,7 @@ import torch.nn.functional as F
 
 
 ROOT = Path(__file__).resolve().parent
-ARTIFACT_DIR = ROOT / "artifacts"
+ARTIFACT_DIR = Path(os.getenv("INTENT_AUTORESEARCH_ARTIFACT_DIR", str(ROOT / "artifacts"))).expanduser()
 DATA_JSON = ARTIFACT_DIR / "dataset.json"
 META_JSON = ARTIFACT_DIR / "metadata.json"
 TIME_BUDGET = int(os.getenv("INTENT_AUTORESEARCH_TIME_BUDGET", "300"))
@@ -149,6 +149,9 @@ def main() -> int:
     train_examples = dataset["train"]
     val_examples = dataset["val"]
     print(f"Device: {device}")
+    if device.type == "cuda":
+        torch.cuda.reset_peak_memory_stats(device)
+        print(f"CUDA device: {torch.cuda.get_device_name(device)}")
     print(f"Train examples: {len(train_examples)} | Val examples: {len(val_examples)}")
     print(f"Intents: {len(intent_names)} | Vocab size: {len(vocab)}")
     print(f"Time budget: {TIME_BUDGET}s")
@@ -171,8 +174,9 @@ def main() -> int:
             loss_f = loss.item()
             ema_loss = 0.9 * ema_loss + 0.1 * loss_f if step else loss_f
             elapsed = time.time() - batch_start
+            wall_seconds = time.time() - start_wall
             if step > 5:
-                train_seconds += elapsed
+                train_seconds = wall_seconds
             print(
                 f"\rstep {step:05d} | train_loss: {ema_loss:.6f} | "
                 f"elapsed: {train_seconds:.1f}s / {TIME_BUDGET}s",
@@ -181,13 +185,15 @@ def main() -> int:
             )
             batch_start = time.time()
             step += 1
-            if step > 5 and train_seconds >= TIME_BUDGET:
+            if step > 5 and wall_seconds >= TIME_BUDGET:
                 break
-        if step > 5 and train_seconds >= TIME_BUDGET:
+        if step > 5 and (time.time() - start_wall) >= TIME_BUDGET:
             break
 
     print()
     metrics = evaluate(model, val_examples, token_to_id, intent_to_id, device)
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
     peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if device.type == "cuda" else 0.0
     total_params = sum(p.numel() for p in model.parameters())
     gc.collect()

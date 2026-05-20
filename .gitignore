@@ -14,3 +14,6 @@ complex_best_config.json
 results.tsv
 complex_results.tsv
 reports/complex_intent_research_deck.md
+artifacts_good/dataset.json
+data/complex_intent_deck.jsonl
+data/good_intent_clean_deck.jsonl

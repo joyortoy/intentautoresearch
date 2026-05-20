@@ -14,6 +14,11 @@ OPENCLAW_ENV_FILES = (
 )
 OPENCLAW_RUNTIME_CONFIG = Path("/home/sam/.openclaw/openclaw.json")
 OPENCLAW_RUNTIME_SESSIONS = Path("/home/sam/.openclaw/agents/main/sessions/sessions.json")
+ROUTE_ALIASES = {
+    "complex": "COMPLEX",
+    "good": "GOOD",
+    "good-clean": "GOOD",
+}
 
 
 def env_file_value(key: str, path: Path) -> str:
@@ -33,23 +38,33 @@ def env_file_value(key: str, path: Path) -> str:
     return ""
 
 
+def webhook_keys() -> list[str]:
+    import os
+
+    route = os.getenv("INTENT_AUTORESEARCH_DISCORD_ROUTE", "").strip().lower()
+    keys: list[str] = []
+    suffix = ROUTE_ALIASES.get(route, "")
+    if suffix:
+        keys.append(f"INTENT_AUTORESEARCH_{suffix}_DISCORD_WEBHOOK_URL")
+    keys.extend(
+        [
+            "INTENT_AUTORESEARCH_DISCORD_WEBHOOK_URL",
+            "OPENCLAW_DISCORD_WEBHOOK_URL",
+            "DISCORD_WEBHOOK_URL",
+        ]
+    )
+    return keys
+
+
 def discover_discord_webhook() -> str:
     import os
 
-    for key in (
-        "INTENT_AUTORESEARCH_DISCORD_WEBHOOK_URL",
-        "OPENCLAW_DISCORD_WEBHOOK_URL",
-        "DISCORD_WEBHOOK_URL",
-    ):
+    for key in webhook_keys():
         value = os.getenv(key, "").strip()
         if value:
             return value
     for env_file in OPENCLAW_ENV_FILES:
-        for key in (
-            "INTENT_AUTORESEARCH_DISCORD_WEBHOOK_URL",
-            "OPENCLAW_DISCORD_WEBHOOK_URL",
-            "DISCORD_WEBHOOK_URL",
-        ):
+        for key in webhook_keys():
             value = env_file_value(key, env_file)
             if value:
                 return value
@@ -102,19 +117,39 @@ def post_json(url: str, payload: dict[str, str], headers: dict[str, str]) -> Non
         resp.read()
 
 
+def chunk_message(message: str, limit: int = 1900) -> list[str]:
+    text = message.strip()
+    if not text:
+        return [""]
+    chunks: list[str] = []
+    remaining = text
+    while len(remaining) > limit:
+        split_at = remaining.rfind("\n", 0, limit + 1)
+        if split_at <= 0:
+            split_at = remaining.rfind(" ", 0, limit + 1)
+        if split_at <= 0:
+            split_at = limit
+        chunks.append(remaining[:split_at].rstrip())
+        remaining = remaining[split_at:].lstrip()
+    if remaining:
+        chunks.append(remaining)
+    return chunks
+
+
 def send_message(message: str) -> None:
     webhook = discover_discord_webhook()
     if webhook:
         try:
-            post_json(
-                webhook,
-                {"content": message},
-                {
-                    "Content-Type": "application/json",
-                    "Accept": "*/*",
-                    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
-                },
-            )
+            for chunk in chunk_message(message):
+                post_json(
+                    webhook,
+                    {"content": chunk},
+                    {
+                        "Content-Type": "application/json",
+                        "Accept": "*/*",
+                        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
+                    },
+                )
             return
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", "replace")
@@ -127,16 +162,17 @@ def send_message(message: str) -> None:
         raise RuntimeError("discord notify skipped: no webhook and no bot/channel config")
 
     try:
-        post_json(
-            f"https://discord.com/api/v10/channels/{channel_id}/messages",
-            {"content": message},
-            {
-                "Content-Type": "application/json",
-                "Accept": "*/*",
-                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
-                "Authorization": f"Bot {token}",
-            },
-        )
+        for chunk in chunk_message(message):
+            post_json(
+                f"https://discord.com/api/v10/channels/{channel_id}/messages",
+                {"content": chunk},
+                {
+                    "Content-Type": "application/json",
+                    "Accept": "*/*",
+                    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
+                    "Authorization": f"Bot {token}",
+                },
+            )
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", "replace")
         raise RuntimeError(f"discord bot http_error {exc.code}: {body}") from exc

@@ -57,6 +57,48 @@ This will:
 - append a row to `results.tsv`
 - regenerate the markdown deck at `reports/intent_research_deck.md`
 
+## Canonical Service And Report Path
+
+The active forever-loop service is being normalized around the
+`intentautoresearch-loop.service` name:
+
+```bash
+systemctl --user status intentautoresearch-loop.service
+```
+
+The older `autoresearch-loop.service` name is kept as a compatibility unit
+while you migrate.
+
+For one consolidated local report that covers live IntentStack health, the
+active `intentautoresearch` loops, and the older
+`/home/sam/projects/autoresearch` qwen embedding repo, use:
+
+```bash
+python3 autoresearch_status.py report
+./report_autoresearch.sh
+```
+
+## Good Intent Cleaning Loop
+
+There is also a separate benign-data loop focused on cleaning and expanding normal user requests rather than adversarial prompts:
+
+```bash
+cd /home/sam/projects/intentautoresearch
+./run_good_intent_forever.sh
+```
+
+This loop uses:
+
+- `data/good_intent_clean_deck.jsonl`
+- `good_results.tsv`
+- `good_best_config.json`
+- `reports/good_intent_research_deck.md`
+
+On stagnation it:
+
+- appends more benign training rows to the good-intent deck
+- raises a model-capacity stage for the next planner proposal
+
 ## Local planner and summary model
 
 The planner and Discord summary path now use local Ollama instead of Codex.

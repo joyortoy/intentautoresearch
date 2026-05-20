@@ -15,7 +15,7 @@ from typing import Iterable
 
 
 ROOT = Path(__file__).resolve().parent
-ARTIFACT_DIR = ROOT / "artifacts"
+ARTIFACT_DIR = Path(os.getenv("INTENT_AUTORESEARCH_ARTIFACT_DIR", str(ROOT / "artifacts"))).expanduser()
 DATA_JSON = ARTIFACT_DIR / "dataset.json"
 META_JSON = ARTIFACT_DIR / "metadata.json"
 DEFAULT_SEED = 42
@@ -161,4 +161,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
