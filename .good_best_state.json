@@ -1,0 +1,6 @@
+{
+  "description": "best-lr-down",
+  "val_accuracy": 0.9906,
+  "val_macro_f1": 0.9754,
+  "val_intent_loss": 0.023388
+}

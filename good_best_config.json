@@ -1,6 +1,6 @@
 {
-  "description": "baseline",
-  "INTENT_AUTORESEARCH_LR": "0.002",
+  "description": "best-lr-down",
+  "INTENT_AUTORESEARCH_LR": "0.001955",
   "INTENT_AUTORESEARCH_BATCH_SIZE": "16",
   "INTENT_AUTORESEARCH_EMBED_DIM": "128",
   "INTENT_AUTORESEARCH_HIDDEN_DIM": "192",

@@ -1,1 +1,2 @@
 commit	val_intent_loss	val_accuracy	val_macro_f1	memory_gb	status	description
+17c1000	0.023388	0.9906	0.9754	0.045	keep	best-lr-down
